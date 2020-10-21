@@ -594,16 +594,22 @@ L.Control.Header = L.Control.extend({
 
 		var scale = this.canvasDPIScale();
 		if (property === 'width') {
-			canvas.width = Math.floor(value * scale);
+			//canvas.width = Math.floor(value * scale);
+			var pixWidth = Math.floor(value * scale);
+			canvas.width = pixWidth;
+			var cssWidth = pixWidth / scale;
+			canvas.style.width = cssWidth.toFixed(4) + 'px';
 			if (!isCorner)
-				this._canvasWidth = value;
-//			console.log('Header._setCanvasSizeImpl: _canvasWidth' + this._canvasWidth);
+				this._canvasWidth = pixWidth;
 		}
 		else if (property === 'height') {
-			canvas.height = Math.floor(value * scale);
+			//canvas.height = Math.floor(value * scale);
+			var pixHeight = Math.floor(value * scale);
+			canvas.height = pixHeight;
+			var cssHeight = pixHeight / scale;
+			canvas.style.height = cssHeight.toFixed(4) + 'px';
 			if (!isCorner)
-				this._canvasHeight = value;
-//			console.log('Header._setCanvasSizeImpl: _canvasHeight' + this._canvasHeight);
+				this._canvasHeight = pixHeight;
 		}
 	},
 
@@ -798,12 +804,13 @@ L.Control.Header.HeaderInfo = L.Class.extend({
 	},
 
 	update: function () {
+		var multiplier = window.mode.useCanvasLayer() ? L.Util.getDpiScaleFactor(true): (L.Browser.retina ? 2: 1);
 		var bounds = this._map.getPixelBounds();
-		var startPx = this._isCol ? bounds.getTopLeft().x : bounds.getTopLeft().y;
+		var startPx = this._isCol ? bounds.getTopLeft().x / multiplier: bounds.getTopLeft().y / multiplier;
 		this._docVisStart = startPx;
-		var endPx = this._isCol ? bounds.getBottomRight().x : bounds.getBottomRight().y;
-		var startIdx = this._dimGeom.getIndexFromPos(startPx, 'csspixels');
-		var endIdx = this._dimGeom.getIndexFromPos(endPx - 1, 'csspixels');
+		var endPx = this._isCol ? bounds.getBottomRight().x: bounds.getBottomRight().y;
+		var startIdx = this._dimGeom.getIndexFromPos(startPx, 'corepixels');
+		var endIdx = this._dimGeom.getIndexFromPos(endPx - 1, 'corepixels');
 		this._elements = [];
 
 		var splitPosContext = this._map.getSplitPanesContext();
@@ -843,28 +850,25 @@ L.Control.Header.HeaderInfo = L.Class.extend({
 		}
 
 		// first free index
-		var dataFirstFree = this._dimGeom.getElementData(startIdx);
-		var firstFreeEnd = dataFirstFree.startpos + dataFirstFree.size - startPx;
-		var firstFreeStart = splitPos;
-		var firstFreeSize = Math.max(0, firstFreeEnd - firstFreeStart);
+		var firstVisibleRowData = this._dimGeom.getElementData(startIdx);
+		var firstFreeEnd = firstVisibleRowData.startpos + firstVisibleRowData.size - startPx;
+		firstFreeEnd *= multiplier;
 		this._elements[startIdx] = {
 			index: startIdx,
 			pos: firstFreeEnd, // end position on the header canvas
-			size: firstFreeSize,
-			origsize: dataFirstFree.size,
+			size: firstFreeEnd,
+			origsize: firstVisibleRowData.size,
 		};
-
+		startPx = firstFreeEnd;
 		this._dimGeom.forEachInRange(startIdx + 1,
 			endIdx, function (idx, data) {
-				var startpos = data.startpos - startPx;
-				var endpos = startpos + data.size;
-				var size = endpos - startpos;
 				this._elements[idx] = {
 					index: idx,
-					pos: endpos, // end position on the header canvas
-					size: size,
-					origsize: size,
+					pos: startPx + data.size * multiplier, // end position on the header canvas
+					size: data.size * multiplier,
+					origsize: data.size,
 				};
+				startPx = this._elements[idx].pos;
 			}.bind(this));
 
 		this._startIndex = startIdx;
